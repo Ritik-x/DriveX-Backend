@@ -22,6 +22,10 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 func ( h *AuthHandler) Register ( c *gin.Context){
 
 	var req RegisterRequest
@@ -48,5 +52,32 @@ func ( h *AuthHandler) Register ( c *gin.Context){
 	}
 c.JSON(http.StatusCreated, gin.H{
 		"user": user,
+	})
+}
+
+func ( h *AuthHandler) Login( c *gin.Context){
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+		return
+	}
+	user , acessToekn , refreshToken , err := h.authService.Login(
+		c.Request.Context(), 
+		req.Email,
+		req.Password,
+	)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":          user,
+		"access_token":  acessToekn,
+		"refresh_token": refreshToken,
 	})
 }

@@ -14,5 +14,5 @@ func Setup (
 	auth := api.Group("/auth")
 
 	auth.POST("/register", authHandler.Register)
-
+auth.POST("/login", authHandler.Login)
 }

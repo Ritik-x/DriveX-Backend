@@ -36,10 +36,11 @@ func main() {
 //repositopry
 
 userRepo := repository.NewUserRepository(db)
+sessionRepo := repository.NewSessionRepository(db)
 
 //services
 
-authService := services.NewAuthService(userRepo)
+authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
 
 //handler 
 
