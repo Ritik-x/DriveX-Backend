@@ -3,6 +3,10 @@ package main
 import (
 	"drivex/internal/config"
 	"drivex/internal/database"
+	"drivex/internal/handlers"
+	"drivex/internal/repository"
+	"drivex/internal/routes"
+	"drivex/internal/services"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -29,9 +33,21 @@ func main() {
 	defer db.Close()
 
 	log.Println("PostgreSQL connected successfully")
+//repositopry
 
+userRepo := repository.NewUserRepository(db)
+
+//services
+
+authService := services.NewAuthService(userRepo)
+
+//handler 
+
+authHandler := handlers.NewAuthHandler(authService)
 
 	router := gin.Default()
+		// Routes
+	routes.Setup(router, authHandler)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "ok",
