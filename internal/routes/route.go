@@ -10,6 +10,8 @@ func Setup (
 	router *gin.Engine,
 	authHandler *handlers.AuthHandler,
 	userHandler *handlers.UserHandler,
+	folderHandler *handlers.FolderHandler,
+
 	jwtSecret string,
 ) {
 	api := router.Group("/api/v1")
@@ -26,4 +28,8 @@ auth.POST("/logout", authHandler.Logout)
 	protected.Use(middleware.AuthMiddleware(jwtSecret))
 
 	protected.GET("/me", userHandler.Me)
+	protected.POST("/folders",folderHandler.Create )
+protected.GET("/folders", folderHandler.GetFolders)
+protected.PATCH("/folders/:id", folderHandler.Update)
+protected.DELETE("/folders/:id", folderHandler.Delete)
 }

@@ -37,20 +37,20 @@ func main() {
 
 userRepo := repository.NewUserRepository(db)
 sessionRepo := repository.NewSessionRepository(db)
-
+folderRepo := repository.NewwFolderRepository(db)
 //services
 
 authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
-
+folderService := services.NewFolderService(folderRepo)
 //handler 
 
 authHandler := handlers.NewAuthHandler(authService)
 userHandler := handlers.NewUserHandler()
 
-
+folderHandler := handlers.NewFolderHandler(folderService)
 	router := gin.Default()
 		// Routes
-	routes.Setup(router, authHandler ,userHandler ,cfg.JWTSecret)
+	routes.Setup(router, authHandler ,userHandler ,folderHandler,cfg.JWTSecret)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "ok",
