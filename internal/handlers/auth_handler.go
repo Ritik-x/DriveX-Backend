@@ -20,6 +20,15 @@ type RegisterRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	
+}
+
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 type LoginRequest struct {
@@ -79,5 +88,62 @@ func ( h *AuthHandler) Login( c *gin.Context){
 		"user":          user,
 		"access_token":  acessToekn,
 		"refresh_token": refreshToken,
+	})
+}
+
+
+func ( h *AuthHandler) Logout( c *gin.Context){
+	var req LogoutRequest
+	if err := c.ShouldBindJSON(&req) ; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "refresh_token is required",
+	})
+	return 
+
+
+
+}
+
+err := h.authService.Logout(
+		c.Request.Context(),
+		req.RefreshToken,
+)
+if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "logout failed",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "logged out successfully",
+	})
+}
+
+func ( h *AuthHandler) Refresh( c *gin.Context ) {
+	var req RefreshRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "refresh_token is required",
+		})
+		return
+	}
+
+
+accessToken, err := h.authService.Refresh(
+		c.Request.Context(),
+		req.RefreshToken,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": accessToken,
 	})
 }

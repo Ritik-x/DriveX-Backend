@@ -45,10 +45,12 @@ authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
 //handler 
 
 authHandler := handlers.NewAuthHandler(authService)
+userHandler := handlers.NewUserHandler()
+
 
 	router := gin.Default()
 		// Routes
-	routes.Setup(router, authHandler)
+	routes.Setup(router, authHandler ,userHandler ,cfg.JWTSecret)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "ok",

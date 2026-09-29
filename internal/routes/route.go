@@ -2,12 +2,15 @@ package routes
 
 import (
 	"drivex/internal/handlers"
+	"drivex/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 func Setup (
 	router *gin.Engine,
 	authHandler *handlers.AuthHandler,
+	userHandler *handlers.UserHandler,
+	jwtSecret string,
 ) {
 	api := router.Group("/api/v1")
 
@@ -15,4 +18,12 @@ func Setup (
 
 	auth.POST("/register", authHandler.Register)
 auth.POST("/login", authHandler.Login)
+auth.POST("/refresh", authHandler.Refresh)
+
+auth.POST("/logout", authHandler.Logout)
+	// Protected routes
+	protected := api.Group("")
+	protected.Use(middleware.AuthMiddleware(jwtSecret))
+
+	protected.GET("/me", userHandler.Me)
 }

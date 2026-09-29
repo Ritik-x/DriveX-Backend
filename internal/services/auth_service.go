@@ -158,3 +158,65 @@ func hashToken(token string) string {
     hash := sha256.Sum256([]byte(token))
     return hex.EncodeToString(hash[:])
 }
+
+func (s *AuthService) Refresh(
+	ctx context.Context,
+	refreshToken string,
+) (string, error) {
+
+	if refreshToken == "" {
+		return "", errors.New("refresh token required")
+	}
+
+	// Refresh token ka hash banao
+	refreshTokenHash := hashToken(refreshToken)
+
+	// Session se user ID + expiry nikalo
+	userID, expiresAt, err :=
+		s.sessionRepo.GetRefreshToken(
+			ctx,
+			refreshTokenHash,
+		)
+
+	if err != nil {
+		return "", errors.New("invalid refresh token")
+	}
+
+	// Refresh token expire ho gaya?
+	if time.Now().After(expiresAt) {
+		return "", errors.New("refresh token expired")
+	}
+
+	// User ko DB se fetch karo
+	user, err := s.userRepo.GetByID(ctx, userID)
+
+	if err != nil {
+		return "", errors.New("user not found")
+	}
+
+	// New access token
+	accessToken, err := s.generateAccessToken(user)
+
+	if err != nil {
+		return "", err
+	}
+
+	return accessToken, nil
+}
+
+func (s *AuthService) Logout(
+	ctx context.Context,
+	refreshToken string,
+) error {
+
+	if refreshToken == "" {
+		return errors.New("refresh token required")
+	}
+
+	refreshTokenHash := hashToken(refreshToken)
+
+	return s.sessionRepo.DeleteByRefreshTokenHash(
+		ctx,
+		refreshTokenHash,
+	)
+}

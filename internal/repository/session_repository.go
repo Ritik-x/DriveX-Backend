@@ -31,3 +31,33 @@ func (r *SessionRepository ) Create(ctx context.Context , userID string,
 			return err
 
 	}
+
+
+
+	func ( r *SessionRepository) GetRefreshToken( ctx context.Context , refreshTokenHash string) ( string , time.Time , error){
+		var userID string
+	var expiresAt time.Time
+
+		err := r.db.QueryRow(ctx, `
+		SELECT user_id, expires_at
+		FROM sessions
+		WHERE refresh_token_hash = $1
+	`, refreshTokenHash).Scan(&userID, &expiresAt)
+
+
+	return userID, expiresAt, err
+	}
+
+
+	func (r *SessionRepository) DeleteByRefreshTokenHash(
+	ctx context.Context,
+	refreshTokenHash string,
+) error {
+
+	_, err := r.db.Exec(ctx, `
+		DELETE FROM sessions
+		WHERE refresh_token_hash = $1
+	`, refreshTokenHash)
+
+	return err
+}
