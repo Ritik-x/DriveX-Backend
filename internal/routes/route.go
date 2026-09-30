@@ -37,4 +37,17 @@ protected.POST(
 	"/files/upload-url",
 	fileHandler.GenerateUpladUrl,
 )
+// protected.POST(
+// 	"/files/upload-url",
+// 	fileHandler.GenerateUpladUrl,
+// )
+
+protected.POST(
+	"/files/complete",
+	fileHandler.CompleteUpload,
+)
+protected.GET(
+	"/files/:id/download",
+	fileHandler.Download,
+)
 }

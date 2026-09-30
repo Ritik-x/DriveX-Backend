@@ -53,12 +53,12 @@ func (h * FileHAndler) GenerateUpladUrl(c *gin.Context){
 	}
 
 
-	uploadUrl , storageKey , err := h.fileService.GenerateUploadURL(c.Request.Context(),
-			userId.(string),
-			req.FileName,
-			req.ContentType,
-		)
-
+	uploadUrl, storageKey, fileId, err := h.fileService.GenerateUploadURL(
+    c.Request.Context(),
+    userId.(string),
+    req.FileName,
+    req.ContentType,
+)
 			if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to generate upload URL",
@@ -67,6 +67,7 @@ func (h * FileHAndler) GenerateUpladUrl(c *gin.Context){
 	}
 
 		c.JSON(http.StatusOK, gin.H{
+			"file_id":fileId,
 		"upload_url":  uploadUrl,
 		"storage_key": storageKey,
 	})
@@ -142,5 +143,76 @@ func (h *FileHAndler) Download(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"download_url": url,
+	})
+}
+func ( h *FileHAndler) GetFiles(c *gin.Context) {
+	userId , exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized",
+		})
+		return
+	}
+
+	var folderId *string 
+	queryFolderID := c.Query("folder_id")
+
+
+	if queryFolderID != "" {
+		folderId = &queryFolderID
+	}
+
+	files, err := h.fileService.GetFiles(
+		c.Request.Context(),
+		userId.(string),
+		folderId,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to fetch files",
+		})
+		return
+	}
+
+
+c.JSON(http.StatusOK, gin.H{
+		"files": files,
+	})
+}
+
+
+func( h *FileHAndler) DeleteFile( c *gin.Context) {
+	userId := c.GetString("user_id")
+
+fileId := c.Param("id")
+
+err := h.fileService.DeletFile( c.Request.Context() , fileId , userId)
+
+if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to delete file",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "file moved to trash",
+	})
+}
+
+func( h *FileHAndler) GetTrash(c *gin.Context){
+	userId := c.GetString("user_id")
+
+	files, err := h.fileService.GetTrash( c.Request.Context() , userId)
+		if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to get trash",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"files": files,
 	})
 }

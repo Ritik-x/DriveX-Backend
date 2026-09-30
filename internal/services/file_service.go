@@ -153,4 +153,36 @@ func (s *FileService) GenerateDownloadUrl(ctx context.Context , userId string , 
 	)
 
 
+
+}
+
+
+func ( s *FileService) GetFiles( ctx context.Context , userId string , folderId *string )([]models.File, error) {
+
+	return s.fileRepo.GetByOwner(
+		ctx,
+		userId,
+		folderId,
+	)
+}
+
+func( s *FileService) DeletFile( ctx context.Context , fileId string,userId string , ) error{
+
+	return s.fileRepo.SoftDelete(ctx , fileId , userId)
+}
+
+
+func (s *FileService) GetTrash(
+	ctx context.Context,
+	userID string,
+) ([]models.File, error) {
+	return s.fileRepo.GetTrash(ctx, userID)
+}
+
+func (s *FileService) RestoreFile(
+	ctx context.Context,
+	fileID string,
+	userID string,
+) error {
+	return s.fileRepo.Restore(ctx, fileID, userID)
 }
