@@ -32,3 +32,24 @@ request , err := presignClient.PresignPutObject(
 	return request.URL, nil
 
 }
+
+
+func ( s *S3Storage) GenerateDownloadUrl(ctx context.Context  , key string ) ( string , error){
+	presignClient := s3.NewPresignClient(s.Client)
+
+	request, err := presignClient.PresignGetObject(
+		ctx,
+		&s3.GetObjectInput{
+			Bucket: aws.String(s.Bucket),
+			Key:    aws.String(key),
+		},
+		func(options *s3.PresignOptions) {
+			options.Expires = 15 * time.Minute
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return request.URL, nil
+}

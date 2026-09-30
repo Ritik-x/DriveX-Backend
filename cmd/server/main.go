@@ -39,6 +39,7 @@ func main() {
 userRepo := repository.NewUserRepository(db)
 sessionRepo := repository.NewSessionRepository(db)
 folderRepo := repository.NewwFolderRepository(db)
+fileRepo := repository.NewFileRepository(db)
 //services
 
 authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
@@ -51,13 +52,15 @@ userHandler := handlers.NewUserHandler()
 
 folderHandler := handlers.NewFolderHandler(folderService)
 
-
+fileHandler := handlers.NewFileHandler(
+	fileService,
+)
 
 s3Storage , err := storage.NewS3Storage(&cfg)
 if err != nil {
 	log.Fatal(err)
 }
-fileService := services.NewFileService(s3Storage,)
+fileService := services.NewFileService(s3Storage,fileRepo )
 
 fileHandler := handlers.NewFileHandler(
 	fileService,

@@ -44,3 +44,37 @@ func NewS3Storage(cfg *config.Config) (*S3Storage, error) {
 		Bucket: cfg.AWSS3Bucket,
 	}, nil
 }
+
+
+
+func (s *S3Storage) GetObjectMetadata(
+	ctx context.Context,
+	key string,
+) (int64, string, error) {
+
+	result, err := s.Client.HeadObject(
+		ctx,
+		&s3.HeadObjectInput{
+			Bucket: aws.String(s.Bucket),
+			Key:    aws.String(key),
+		},
+	)
+
+	if err != nil {
+		return 0, "", err
+	}
+
+	contentType := ""
+
+	if result.ContentType != nil {
+		contentType = *result.ContentType
+	}
+
+	var size int64
+
+	if result.ContentLength != nil {
+		size = *result.ContentLength
+	}
+
+	return size, contentType, nil
+}
