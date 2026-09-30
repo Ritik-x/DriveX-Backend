@@ -13,6 +13,12 @@ type Config struct {
 	DBName     string
 	DBSSLMode  string
 	JWTSecret string
+
+
+	AWSRegion          string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	AWSS3Bucket        string
 }
 
 func Load() Config {
@@ -27,6 +33,12 @@ Port:   os.Getenv("PORT"),
 		DBName:     os.Getenv("DB_NAME"),
 		DBSSLMode:  os.Getenv("DB_SSLMODE"),
 		JWTSecret: os.Getenv("JWT_SECRET"),
+
+
+		AWSRegion:          os.Getenv("AWS_REGION"),
+AWSAccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+AWSSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+AWSS3Bucket:        os.Getenv("AWS_S3_BUCKET"),
 	}
 
 }

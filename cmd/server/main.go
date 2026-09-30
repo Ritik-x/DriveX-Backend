@@ -7,6 +7,7 @@ import (
 	"drivex/internal/repository"
 	"drivex/internal/routes"
 	"drivex/internal/services"
+	"drivex/internal/storage"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -42,15 +43,39 @@ folderRepo := repository.NewwFolderRepository(db)
 
 authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
 folderService := services.NewFolderService(folderRepo)
+
 //handler 
 
 authHandler := handlers.NewAuthHandler(authService)
 userHandler := handlers.NewUserHandler()
 
 folderHandler := handlers.NewFolderHandler(folderService)
+
+
+
+s3Storage , err := storage.NewS3Storage(&cfg)
+if err != nil {
+	log.Fatal(err)
+}
+fileService := services.NewFileService(s3Storage,)
+
+fileHandler := handlers.NewFileHandler(
+	fileService,
+)
+
+
+
 	router := gin.Default()
+
 		// Routes
-	routes.Setup(router, authHandler ,userHandler ,folderHandler,cfg.JWTSecret)
+	routes.Setup(
+	router,
+	authHandler,
+	userHandler,
+	folderHandler,
+	fileHandler,
+	cfg.JWTSecret,
+)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "ok",

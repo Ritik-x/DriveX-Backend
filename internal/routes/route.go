@@ -11,6 +11,7 @@ func Setup (
 	authHandler *handlers.AuthHandler,
 	userHandler *handlers.UserHandler,
 	folderHandler *handlers.FolderHandler,
+	fileHandler *handlers.FileHAndler,
 
 	jwtSecret string,
 ) {
@@ -32,4 +33,8 @@ auth.POST("/logout", authHandler.Logout)
 protected.GET("/folders", folderHandler.GetFolders)
 protected.PATCH("/folders/:id", folderHandler.Update)
 protected.DELETE("/folders/:id", folderHandler.Delete)
+protected.POST(
+	"/files/upload-url",
+	fileHandler.GenerateUpladUrl,
+)
 }
