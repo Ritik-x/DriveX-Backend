@@ -138,7 +138,7 @@ func isValidStorageKey(
 
 func (s *FileService) GenerateDownloadUrl(ctx context.Context , userId string , fileId string ) (string , error){
 
-	file, err := s.fileRepo.GetFileById(
+	file, err := s.fileRepo.GetIdForUser(
 		ctx,
 		fileId,
 		userId,
@@ -185,4 +185,12 @@ func (s *FileService) RestoreFile(
 	userID string,
 ) error {
 	return s.fileRepo.Restore(ctx, fileID, userID)
+}
+
+func (s *FileService) GetSharedFiles(
+	ctx context.Context,
+	userID string,
+) ([]models.File, error) {
+
+	return s.fileRepo.GetSharedFilewithuser(ctx, userID)
 }

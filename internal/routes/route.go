@@ -12,6 +12,7 @@ func Setup (
 	userHandler *handlers.UserHandler,
 	folderHandler *handlers.FolderHandler,
 	fileHandler *handlers.FileHAndler,
+	fileShareHandler *handlers.FileShareHandler,
 
 	jwtSecret string,
 ) {
@@ -50,4 +51,16 @@ protected.GET(
 	"/files/:id/download",
 	fileHandler.Download,
 )
+protected.DELETE("/files/:id", fileHandler.DeleteFile)
+
+protected.GET("/trash", fileHandler.GetTrash)
+
+protected.POST("/files/:id/restore", fileHandler.RestoreFile)
+protected.POST(
+	"/files/:id/share",
+	fileShareHandler.ShareFile,
+)
+
+
+protected.GET("/files/shared", fileHandler.GetSharedFie)
 }

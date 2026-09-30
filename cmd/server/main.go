@@ -40,21 +40,21 @@ userRepo := repository.NewUserRepository(db)
 sessionRepo := repository.NewSessionRepository(db)
 folderRepo := repository.NewwFolderRepository(db)
 fileRepo := repository.NewFileRepository(db)
+fileShareRepo := repository.NewFileShareRepository(db)
 //services
 
 authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
 folderService := services.NewFolderService(folderRepo)
-
+fileShareServie := services.NewFileSHareService(fileRepo , fileShareRepo,userRepo)
 //handler 
 
 authHandler := handlers.NewAuthHandler(authService)
 userHandler := handlers.NewUserHandler()
 
 folderHandler := handlers.NewFolderHandler(folderService)
+fileShareHandler := handlers.NewFileShareHandler(fileShareServie)
 
-fileHandler := handlers.NewFileHandler(
-	fileService,
-)
+
 
 s3Storage , err := storage.NewS3Storage(&cfg)
 if err != nil {
@@ -77,6 +77,7 @@ fileHandler := handlers.NewFileHandler(
 	userHandler,
 	folderHandler,
 	fileHandler,
+	fileShareHandler,
 	cfg.JWTSecret,
 )
 	router.GET("/health", func(c *gin.Context) {

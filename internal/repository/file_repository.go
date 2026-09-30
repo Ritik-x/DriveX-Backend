@@ -278,3 +278,106 @@ func (r *FileRepository) Restore(
 
 	return err
 }
+
+
+func ( r *FileRepository) GetIdForUser(ctx context.Context , fileId string , userd string )(*models.File, error) {
+
+	var files models.File
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			f.id,
+			f.owner_id,
+			f.folder_id,
+			f.name,
+			f.original_name,
+			f.storage_key,
+			f.mime_type,
+			f.size,
+			f.deleted_at,
+			f.created_at,
+			f.updated_at
+		FROM files f
+		LEFT JOIN file_shares fs
+			ON fs.file_id = f.id
+			AND fs.shared_with_user_id = $2
+		WHERE f.id = $1
+		  AND f.deleted_at IS NULL
+		  AND (
+		      f.owner_id = $2
+		      OR fs.shared_with_user_id = $2
+		  )
+	`,fileId ,userd).Scan(&files.Id,
+		&files.OwnerId,
+		&files.FolderId,
+		&files.Name,
+		&files.OriginalName,
+		&files.StorageKey,
+		&files.MimeType,
+		&files.Size,
+		&files.DeletedAt,
+		&files.CreatedAt,
+		&files.UpdatedAt,)
+
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &files, nil
+}
+
+func ( r *FileRepository) GetSharedFilewithuser(ctx context.Context , userId string ) ([]models.File , error){
+		rows, err := r.db.Query(ctx, `
+		SELECT
+			f.id,
+			f.owner_id,
+			f.folder_id,
+			f.name,
+			f.original_name,
+			f.storage_key,
+			f.mime_type,
+			f.size,
+			f.deleted_at,
+			f.created_at,
+			f.updated_at
+		FROM files f
+		INNER JOIN file_shares fs
+			ON fs.file_id = f.id
+		WHERE fs.shared_with_user_id = $1
+		  AND f.deleted_at IS NULL
+		ORDER BY f.created_at DESC
+	`, userId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+
+	var files []models.File
+
+	for rows.Next() {
+		var file models.File
+
+		err := rows.Scan(
+			&file.FolderId,
+			&file.OwnerId,
+			&file.FolderId,
+			&file.Name,
+			&file.OriginalName,
+			&file.StorageKey,
+			&file.MimeType,
+			&file.Size,
+			&file.DeletedAt,
+			&file.CreatedAt,
+			&file.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, file)
+	}
+
+	return files, rows.Err()
+}

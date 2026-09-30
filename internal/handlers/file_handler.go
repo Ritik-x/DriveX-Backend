@@ -216,3 +216,46 @@ func( h *FileHAndler) GetTrash(c *gin.Context){
 		"files": files,
 	})
 }
+
+
+
+func (h *FileHAndler) RestoreFile(c *gin.Context) {
+	userID := c.GetString("user_id")
+	fileID := c.Param("id")
+
+	err := h.fileService.RestoreFile(
+		c.Request.Context(),
+		fileID,
+		userID,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to restore file",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "file restored successfully",
+	})
+}
+
+
+
+
+func ( h *FileHAndler) GetSharedFie( c *gin.Context){
+	userId := c.GetString("user_id")
+	files , err := h.fileService.GetSharedFiles(c.Request.Context() , userId)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to get shared files",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"files": files,
+	})
+}
