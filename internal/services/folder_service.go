@@ -3,21 +3,28 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"drivex/internal/models"
+	"drivex/internal/redis"
 	"drivex/internal/repository"
 )
 
 type FolderService struct {
 	folderRepo *repository.FolderRepo
+	redisClient *redis.Client
 }
 
 func NewFolderService(
 	folderRepo *repository.FolderRepo,
+	redisClient *redis.Client,
+
 ) *FolderService {
 	return &FolderService{
 		folderRepo: folderRepo,
+		redisClient: redisClient,
 	}
 }
 
@@ -54,11 +61,52 @@ func (s *FolderService) GetFolders(
 	parentID *string,
 ) ([]models.Folder, error) {
 
-	return s.folderRepo.GetByOwner(
+
+
+	parentKey := "root"
+
+	if parentID != nil {
+		parentKey = *parentID
+	}
+
+	cacheKey := fmt.Sprintf(
+		"folders:owner:%s:parent:%s",
+		ownerID,
+		parentKey,
+	)
+
+	var cachedFolders []models.Folder
+
+	err := s.redisClient.GetJSON(
+		ctx,
+		cacheKey,
+		&cachedFolders,
+	)
+
+	if err == nil {
+		return cachedFolders, nil
+	}
+
+	folders, err := s.folderRepo.GetByOwner(
 		ctx,
 		ownerID,
 		parentID,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+	_ = s.redisClient.SetJSON(
+		ctx,
+		cacheKey,
+		folders,
+		5*time.Minute,
+	)
+
+	return folders, nil
+
+	
+	
 }
 
 
