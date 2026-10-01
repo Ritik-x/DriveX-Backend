@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"drivex/internal/config"
 	"drivex/internal/database"
 	"drivex/internal/handlers"
@@ -9,6 +10,8 @@ import (
 	"drivex/internal/services"
 	"drivex/internal/storage"
 	"log"
+
+	redisclient "drivex/internal/redis"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -66,6 +69,14 @@ fileHandler := handlers.NewFileHandler(
 	fileService,
 )
 
+redisClient := redisclient.NewRedisClient(cfg.RedisAddr)
+
+if err := redisClient.Ping(context.Background()); err != nil {
+	log.Fatal("failed to connect to Redis:", err)
+}
+
+log.Println("Redis connected")
+
 
 
 	router := gin.Default()
@@ -78,6 +89,7 @@ fileHandler := handlers.NewFileHandler(
 	folderHandler,
 	fileHandler,
 	fileShareHandler,
+		redisClient,
 	cfg.JWTSecret,
 )
 	router.GET("/health", func(c *gin.Context) {

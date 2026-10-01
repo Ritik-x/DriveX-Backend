@@ -3,6 +3,9 @@ package routes
 import (
 	"drivex/internal/handlers"
 	"drivex/internal/middleware"
+	"time"
+
+	redisclient "drivex/internal/redis"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,21 +16,24 @@ func Setup (
 	folderHandler *handlers.FolderHandler,
 	fileHandler *handlers.FileHAndler,
 	fileShareHandler *handlers.FileShareHandler,
-
+redisClient *redisclient.Client,
 	jwtSecret string,
 ) {
 	api := router.Group("/api/v1")
 
 	auth := api.Group("/auth")
+	authRateLimit := middleware.RateLimit(redisClient , 5 ,time.Minute)
 
-	auth.POST("/register", authHandler.Register)
-auth.POST("/login", authHandler.Login)
+	auth.POST("/register",	authRateLimit, authHandler.Register)
+auth.POST("/login",authRateLimit, authHandler.Login)
 auth.POST("/refresh", authHandler.Refresh)
 
 auth.POST("/logout", authHandler.Logout)
+
+
 	// Protected routes
 	protected := api.Group("")
-	protected.Use(middleware.AuthMiddleware(jwtSecret))
+	protected.Use(middleware.AuthMiddleware(jwtSecret), middleware.RateLimit(redisClient ,50 , time.Minute))
 
 	protected.GET("/me", userHandler.Me)
 	protected.POST("/folders",folderHandler.Create )

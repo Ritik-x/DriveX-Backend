@@ -19,6 +19,7 @@ type Config struct {
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
 	AWSS3Bucket        string
+	RedisAddr string
 }
 
 func Load() Config {
@@ -39,6 +40,7 @@ Port:   os.Getenv("PORT"),
 AWSAccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
 AWSSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
 AWSS3Bucket:        os.Getenv("AWS_S3_BUCKET"),
+RedisAddr: os.Getenv("REDIS_ADDR" ),
 	}
 
 }
