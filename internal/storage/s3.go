@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"drivex/internal/config"
 
@@ -77,4 +78,38 @@ func (s *S3Storage) GetObjectMetadata(
 	}
 
 	return size, contentType, nil
+}
+func (s *S3Storage) PutObject(
+	ctx context.Context,
+	key string,
+	body io.Reader,
+	contentType string,
+) error {
+
+	_, err := s.Client.PutObject(
+		ctx,
+		&s3.PutObjectInput{
+			Bucket:      aws.String(s.Bucket),
+			Key:         aws.String(key),
+			Body:        body,
+			ContentType: aws.String(contentType),
+		},
+	)
+
+	return err
+}
+
+
+func (s *S3Storage) GetObject(
+	ctx context.Context,
+	key string,
+) (*s3.GetObjectOutput, error) {
+
+	return s.Client.GetObject(
+		ctx,
+		&s3.GetObjectInput{
+			Bucket: aws.String(s.Bucket),
+			Key:    aws.String(key),
+		},
+	)
 }

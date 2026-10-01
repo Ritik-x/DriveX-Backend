@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"drivex/internal/models"
+	"drivex/internal/queue"
 	"drivex/internal/repository"
 	"drivex/internal/storage"
 
@@ -17,15 +19,22 @@ import (
 type FileService struct {
 	s3       *storage.S3Storage
 	fileRepo *repository.FileRepository
+	rabbit *queue.RabbitMQ
 }
-
+type FileProcessingJob struct {
+	FileID     string `json:"file_id"`
+	StorageKey string `json:"storage_key"`
+	MimeType   string `json:"mime_type"`
+}
 func NewFileService(
 	s3 *storage.S3Storage,
 	fileRepo *repository.FileRepository,
+	rabbit *queue.RabbitMQ,
 ) *FileService {
 	return &FileService{
 		s3:       s3,
 		fileRepo: fileRepo,
+		rabbit:   rabbit,
 	}
 }
 
@@ -64,6 +73,95 @@ func (s *FileService) GenerateUploadURL(
 	return url, storageKey, fileID, nil
 }
 
+// func (s *FileService) CompleteUpload(
+// 	ctx context.Context,
+// 	userID string,
+// 	fileID string,
+// 	folderID *string,
+// 	fileName string,
+// 	originalName string,
+// 	storageKey string,
+// 	mimeType string,
+// 	size int64,
+//    ) (*models.File, error) {
+
+
+
+// 	// Make sure the storage key belongs to this user.
+// 	if !isValidStorageKey(userID, storageKey) {
+// 		return nil, errors.New("invalid storage key")
+// 	}
+
+	
+// 	expectedPrefix := fmt.Sprintf(
+// 		"users/%s/files/%s",
+// 		userID,
+// 		fileID,
+// 	)
+
+// 	if !strings.HasPrefix(storageKey, expectedPrefix) {
+// 		return nil, errors.New("invalid file storage key")
+// 	}
+
+// 	// Verify t
+// 	actualSize, actualMimeType, err :=
+// 		s.s3.GetObjectMetadata(ctx, storageKey)
+
+// 	if err != nil {
+// 		return nil, errors.New("file does not exist in storage")
+// 	}
+
+// 	// S3 metadata is more trustworthy than client-provided size.
+// 	if actualMimeType == "" {
+// 		actualMimeType = mimeType
+// 	}
+
+// file := &models.File{
+// 	Id:           fileID,
+// 	OwnerId:      userID,
+// 	FolderId:     *folderID,
+// 	Name:         fileName,
+// 	OriginalName: originalName,
+// 	StorageKey:   storageKey,
+// 	MimeType:     actualMimeType,
+// 	Size:         actualSize,
+// }
+
+// err = s.fileRepo.Create(ctx, file)
+// if err != nil {
+// 	return nil, err
+// }
+
+// // Create background processing job.
+// job := FileProcessingJob{
+// 	FileID:     file.Id,
+// 	StorageKey: file.StorageKey,
+// 	MimeType:   file.MimeType,
+// }
+
+// body, err := json.Marshal(job)
+// if err != nil {
+// 	return nil, err
+// }
+
+// err = s.rabbit.Publish(
+// 	"file_processing",
+// 	body,
+// )
+
+// if err != nil {
+// 	return nil, err
+// }
+
+// return file, nil
+// }
+
+
+
+
+
+
+
 func (s *FileService) CompleteUpload(
 	ctx context.Context,
 	userID string,
@@ -76,12 +174,10 @@ func (s *FileService) CompleteUpload(
 	size int64,
 ) (*models.File, error) {
 
-	// Make sure the storage key belongs to this user.
 	if !isValidStorageKey(userID, storageKey) {
 		return nil, errors.New("invalid storage key")
 	}
 
-	
 	expectedPrefix := fmt.Sprintf(
 		"users/%s/files/%s",
 		userID,
@@ -92,7 +188,6 @@ func (s *FileService) CompleteUpload(
 		return nil, errors.New("invalid file storage key")
 	}
 
-	// Verify t
 	actualSize, actualMimeType, err :=
 		s.s3.GetObjectMetadata(ctx, storageKey)
 
@@ -100,7 +195,6 @@ func (s *FileService) CompleteUpload(
 		return nil, errors.New("file does not exist in storage")
 	}
 
-	// S3 metadata is more trustworthy than client-provided size.
 	if actualMimeType == "" {
 		actualMimeType = mimeType
 	}
@@ -108,7 +202,7 @@ func (s *FileService) CompleteUpload(
 	file := &models.File{
 		Id:           fileID,
 		OwnerId:      userID,
-		FolderId:    *folderID,
+		FolderId:     *folderID,
 		Name:         fileName,
 		OriginalName: originalName,
 		StorageKey:   storageKey,
@@ -116,9 +210,49 @@ func (s *FileService) CompleteUpload(
 		Size:         actualSize,
 	}
 
-	// Save only metadata in PostgreSQL.
-	return s.fileRepo.Create(ctx, file)
+	// 1. Save metadata in PostgreSQL
+createdFile, err := s.fileRepo.Create(ctx, file)
+if err != nil {
+	return nil, err
 }
+
+	// 2. Create background job
+	job := FileProcessingJob{
+		FileID:     file.Id,
+		StorageKey: file.StorageKey,
+		MimeType:   file.MimeType,
+	}
+
+	// 3. Convert job to JSON
+	body, err := json.Marshal(job)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Publish job to RabbitMQ
+	err = s.rabbit.Publish(
+		"file_processing",
+		body,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return createdFile, nil
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Checks whether the S3 key belongs to the authenticated user.
 func isValidStorageKey(
@@ -194,3 +328,4 @@ func (s *FileService) GetSharedFiles(
 
 	return s.fileRepo.GetSharedFilewithuser(ctx, userID)
 }
+

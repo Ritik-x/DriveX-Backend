@@ -147,3 +147,24 @@ func (s *FolderService) Delete(
 		ownerID,
 	)
 }
+
+func (s *FolderService) invalidateFolderCache(
+	ctx context.Context,
+	userID string,
+	parentID *string,
+) {
+
+	parentKey := "root"
+
+	if parentID != nil {
+		parentKey = *parentID
+	}
+
+	key := fmt.Sprintf(
+		"folders:user:%s:parent:%s",
+		userID,
+		parentKey,
+	)
+
+	_ = s.redisClient.RDB.Del(ctx, key).Err()
+}

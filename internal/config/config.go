@@ -20,6 +20,7 @@ type Config struct {
 	AWSSecretAccessKey string
 	AWSS3Bucket        string
 	RedisAddr string
+	RabbitMQURL string
 }
 
 func Load() Config {
@@ -41,6 +42,9 @@ AWSAccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
 AWSSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
 AWSS3Bucket:        os.Getenv("AWS_S3_BUCKET"),
 RedisAddr: os.Getenv("REDIS_ADDR" ),
+RabbitMQURL: os.Getenv(
+	"RABBITMQ_URL"),
+
 	}
 
 }

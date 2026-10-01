@@ -381,3 +381,22 @@ func ( r *FileRepository) GetSharedFilewithuser(ctx context.Context , userId str
 
 	return files, rows.Err()
 }
+
+func (r *FileRepository) SetThumbnailKey(
+	ctx context.Context,
+	fileID string,
+	key string,
+) error {
+
+	_, err := r.db.Exec(ctx, `
+		UPDATE files
+		SET thumbnail_key = $1,
+		    updated_at = NOW()
+		WHERE id = $2
+	`,
+		key,
+		fileID,
+	)
+
+	return err
+}

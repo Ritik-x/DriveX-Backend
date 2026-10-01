@@ -13,6 +13,8 @@ import (
 
 	redisclient "drivex/internal/redis"
 
+	"drivex/internal/queue"
+
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -37,6 +39,29 @@ func main() {
 	defer db.Close()
 
 	log.Println("PostgreSQL connected successfully")
+
+
+	redisClient := redisclient.NewRedisClient(cfg.RedisAddr)
+
+if err := redisClient.Ping(context.Background()); err != nil {
+	log.Fatal("failed to connect to Redis:", err)
+}
+
+log.Println("Redis connected")
+
+
+
+
+rabbit , err := queue.NewRabbitMQ(cfg.RabbitMQURL)
+
+if err != nil {
+	log.Fatal(err)
+}
+
+defer rabbit.Conn.Close()
+defer rabbit.Ch.Close()
+
+log.Println("RabbitMQ connected")
 //repositopry
 
 userRepo := repository.NewUserRepository(db)
@@ -47,7 +72,7 @@ fileShareRepo := repository.NewFileShareRepository(db)
 //services
 
 authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
-folderService := services.NewFolderService(folderRepo)
+folderService := services.NewFolderService(folderRepo , redisClient)
 fileShareServie := services.NewFileSHareService(fileRepo , fileShareRepo,userRepo)
 //handler 
 
@@ -63,19 +88,12 @@ s3Storage , err := storage.NewS3Storage(&cfg)
 if err != nil {
 	log.Fatal(err)
 }
-fileService := services.NewFileService(s3Storage,fileRepo )
+fileService := services.NewFileService(s3Storage,fileRepo ,rabbit)
 
 fileHandler := handlers.NewFileHandler(
 	fileService,
 )
 
-redisClient := redisclient.NewRedisClient(cfg.RedisAddr)
-
-if err := redisClient.Ping(context.Background()); err != nil {
-	log.Fatal("failed to connect to Redis:", err)
-}
-
-log.Println("Redis connected")
 
 
 
