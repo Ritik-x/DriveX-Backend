@@ -22,10 +22,9 @@ import (
 func main() {
 
 	//load env
-
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env")
-	}
+if err := godotenv.Load(); err != nil {
+    log.Println("warning: .env file not found, using environment variables")
+}
 // Load application configuration
 	cfg := config.Load()
 
@@ -117,7 +116,7 @@ fileHandler := handlers.NewFileHandler(
 	})
 	log.Println("DriveX server running on :8080")
 
-	if err := router.Run(":8081"); err != nil {
+	if err := router.Run(":8080"); err != nil {
     log.Fatal(err)
 
 }
