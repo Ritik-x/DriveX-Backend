@@ -15,6 +15,7 @@ import (
 
 	"drivex/internal/queue"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -22,12 +23,11 @@ import (
 func main() {
 
 	//load env
-if err := godotenv.Load(); err != nil {
-    log.Println("warning: .env file not found, using environment variables")
-}
-// Load application configuration
+	if err := godotenv.Load(); err != nil {
+		log.Println("warning: .env file not found, using environment variables")
+	}
+	// Load application configuration
 	cfg := config.Load()
-
 
 	// Connect to PostgreSQL
 	db, err := database.NewPostgres(cfg)
@@ -39,76 +39,74 @@ if err := godotenv.Load(); err != nil {
 
 	log.Println("PostgreSQL connected successfully")
 
-
 	redisClient := redisclient.NewRedisClient(cfg.RedisAddr)
 
-if err := redisClient.Ping(context.Background()); err != nil {
-	log.Fatal("failed to connect to Redis:", err)
-}
+	if err := redisClient.Ping(context.Background()); err != nil {
+		log.Fatal("failed to connect to Redis:", err)
+	}
 
-log.Println("Redis connected")
+	log.Println("Redis connected")
 
+	rabbit, err := queue.NewRabbitMQ(cfg.RabbitMQURL)
 
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	defer rabbit.Conn.Close()
+	defer rabbit.Ch.Close()
 
-rabbit , err := queue.NewRabbitMQ(cfg.RabbitMQURL)
+	log.Println("RabbitMQ connected")
+	//repositopry
 
-if err != nil {
-	log.Fatal(err)
-}
+	userRepo := repository.NewUserRepository(db)
+	sessionRepo := repository.NewSessionRepository(db)
+	folderRepo := repository.NewwFolderRepository(db)
+	fileRepo := repository.NewFileRepository(db)
+	fileShareRepo := repository.NewFileShareRepository(db)
+	//services
 
-defer rabbit.Conn.Close()
-defer rabbit.Ch.Close()
+	authService := services.NewAuthService(userRepo, sessionRepo, cfg.JWTSecret)
+	folderService := services.NewFolderService(folderRepo, redisClient)
+	fileShareServie := services.NewFileSHareService(fileRepo, fileShareRepo, userRepo)
+	//handler
 
-log.Println("RabbitMQ connected")
-//repositopry
+	authHandler := handlers.NewAuthHandler(authService)
+	userHandler := handlers.NewUserHandler()
 
-userRepo := repository.NewUserRepository(db)
-sessionRepo := repository.NewSessionRepository(db)
-folderRepo := repository.NewwFolderRepository(db)
-fileRepo := repository.NewFileRepository(db)
-fileShareRepo := repository.NewFileShareRepository(db)
-//services
+	folderHandler := handlers.NewFolderHandler(folderService)
+	fileShareHandler := handlers.NewFileShareHandler(fileShareServie)
 
-authService := services.NewAuthService(userRepo , sessionRepo,cfg.JWTSecret)
-folderService := services.NewFolderService(folderRepo , redisClient)
-fileShareServie := services.NewFileSHareService(fileRepo , fileShareRepo,userRepo)
-//handler 
+	s3Storage, err := storage.NewS3Storage(&cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileService := services.NewFileService(s3Storage, fileRepo, rabbit)
 
-authHandler := handlers.NewAuthHandler(authService)
-userHandler := handlers.NewUserHandler()
-
-folderHandler := handlers.NewFolderHandler(folderService)
-fileShareHandler := handlers.NewFileShareHandler(fileShareServie)
-
-
-
-s3Storage , err := storage.NewS3Storage(&cfg)
-if err != nil {
-	log.Fatal(err)
-}
-fileService := services.NewFileService(s3Storage,fileRepo ,rabbit)
-
-fileHandler := handlers.NewFileHandler(
-	fileService,
-)
-
-
-
+	fileHandler := handlers.NewFileHandler(
+		fileService,
+		folderService,
+	)
 
 	router := gin.Default()
 
-		// Routes
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
+	// Routes
 	routes.Setup(
-	router,
-	authHandler,
-	userHandler,
-	folderHandler,
-	fileHandler,
-	fileShareHandler,
+		router,
+		authHandler,
+		userHandler,
+		folderHandler,
+		fileHandler,
+		fileShareHandler,
 		redisClient,
-	cfg.JWTSecret,
-)
+		cfg.JWTSecret,
+	)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "ok",
@@ -117,7 +115,7 @@ fileHandler := handlers.NewFileHandler(
 	log.Println("DriveX server running on :8080")
 
 	if err := router.Run(":8080"); err != nil {
-    log.Fatal(err)
+		log.Fatal(err)
 
-}
+	}
 }

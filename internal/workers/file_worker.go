@@ -113,16 +113,29 @@ func (w *FileWorker) processImage(
 	ext := strings.ToLower(
 		filepath.Ext(job.StorageKey),
 	)
+	mime := strings.ToLower(job.MimeType)
 
 	if ext != ".jpg" &&
 		ext != ".jpeg" &&
-		ext != ".png" {
+		ext != ".png" &&
+		mime != "image/jpeg" &&
+		mime != "image/jpg" &&
+		mime != "image/png" {
 		log.Printf(
 			"skipping thumbnail for unsupported file: %s",
 			job.StorageKey,
 		)
 
 		return nil
+	}
+
+	if ext == "" {
+		switch mime {
+		case "image/png":
+			ext = ".png"
+		case "image/jpeg", "image/jpg":
+			ext = ".jpg"
+		}
 	}
 
 	// Download original file from S3.

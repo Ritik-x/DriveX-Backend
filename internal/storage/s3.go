@@ -113,3 +113,22 @@ func (s *S3Storage) GetObject(
 		},
 	)
 }
+
+func (s *S3Storage) DeleteObject(
+	ctx context.Context,
+	key string,
+) error {
+	if key == "" {
+		return nil
+	}
+
+	_, err := s.Client.DeleteObject(
+		ctx,
+		&s3.DeleteObjectInput{
+			Bucket: aws.String(s.Bucket),
+			Key:    aws.String(key),
+		},
+	)
+
+	return err
+}

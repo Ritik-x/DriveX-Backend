@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -19,13 +20,14 @@ import (
 type FileService struct {
 	s3       *storage.S3Storage
 	fileRepo *repository.FileRepository
-	rabbit *queue.RabbitMQ
+	rabbit   *queue.RabbitMQ
 }
 type FileProcessingJob struct {
 	FileID     string `json:"file_id"`
 	StorageKey string `json:"storage_key"`
 	MimeType   string `json:"mime_type"`
 }
+
 func NewFileService(
 	s3 *storage.S3Storage,
 	fileRepo *repository.FileRepository,
@@ -73,94 +75,6 @@ func (s *FileService) GenerateUploadURL(
 	return url, storageKey, fileID, nil
 }
 
-// func (s *FileService) CompleteUpload(
-// 	ctx context.Context,
-// 	userID string,
-// 	fileID string,
-// 	folderID *string,
-// 	fileName string,
-// 	originalName string,
-// 	storageKey string,
-// 	mimeType string,
-// 	size int64,
-//    ) (*models.File, error) {
-
-
-
-// 	// Make sure the storage key belongs to this user.
-// 	if !isValidStorageKey(userID, storageKey) {
-// 		return nil, errors.New("invalid storage key")
-// 	}
-
-	
-// 	expectedPrefix := fmt.Sprintf(
-// 		"users/%s/files/%s",
-// 		userID,
-// 		fileID,
-// 	)
-
-// 	if !strings.HasPrefix(storageKey, expectedPrefix) {
-// 		return nil, errors.New("invalid file storage key")
-// 	}
-
-// 	// Verify t
-// 	actualSize, actualMimeType, err :=
-// 		s.s3.GetObjectMetadata(ctx, storageKey)
-
-// 	if err != nil {
-// 		return nil, errors.New("file does not exist in storage")
-// 	}
-
-// 	// S3 metadata is more trustworthy than client-provided size.
-// 	if actualMimeType == "" {
-// 		actualMimeType = mimeType
-// 	}
-
-// file := &models.File{
-// 	Id:           fileID,
-// 	OwnerId:      userID,
-// 	FolderId:     *folderID,
-// 	Name:         fileName,
-// 	OriginalName: originalName,
-// 	StorageKey:   storageKey,
-// 	MimeType:     actualMimeType,
-// 	Size:         actualSize,
-// }
-
-// err = s.fileRepo.Create(ctx, file)
-// if err != nil {
-// 	return nil, err
-// }
-
-// // Create background processing job.
-// job := FileProcessingJob{
-// 	FileID:     file.Id,
-// 	StorageKey: file.StorageKey,
-// 	MimeType:   file.MimeType,
-// }
-
-// body, err := json.Marshal(job)
-// if err != nil {
-// 	return nil, err
-// }
-
-// err = s.rabbit.Publish(
-// 	"file_processing",
-// 	body,
-// )
-
-// if err != nil {
-// 	return nil, err
-// }
-
-// return file, nil
-// }
-
-
-
-
-
-
 
 func (s *FileService) CompleteUpload(
 	ctx context.Context,
@@ -202,7 +116,7 @@ func (s *FileService) CompleteUpload(
 	file := &models.File{
 		Id:           fileID,
 		OwnerId:      userID,
-		FolderId:     *folderID,
+		FolderId:     folderID,
 		Name:         fileName,
 		OriginalName: originalName,
 		StorageKey:   storageKey,
@@ -211,10 +125,10 @@ func (s *FileService) CompleteUpload(
 	}
 
 	// 1. Save metadata in PostgreSQL
-createdFile, err := s.fileRepo.Create(ctx, file)
-if err != nil {
-	return nil, err
-}
+	createdFile, err := s.fileRepo.Create(ctx, file)
+	if err != nil {
+		return nil, err
+	}
 
 	// 2. Create background job
 	job := FileProcessingJob{
@@ -242,18 +156,6 @@ if err != nil {
 	return createdFile, nil
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 // Checks whether the S3 key belongs to the authenticated user.
 func isValidStorageKey(
 	userID string,
@@ -268,9 +170,7 @@ func isValidStorageKey(
 	return strings.HasPrefix(storageKey, prefix)
 }
 
-
-
-func (s *FileService) GenerateDownloadUrl(ctx context.Context , userId string , fileId string ) (string , error){
+func (s *FileService) GenerateDownloadUrl(ctx context.Context, userId string, fileId string) (string, error) {
 
 	file, err := s.fileRepo.GetIdForUser(
 		ctx,
@@ -286,31 +186,56 @@ func (s *FileService) GenerateDownloadUrl(ctx context.Context , userId string , 
 		file.StorageKey,
 	)
 
-
-
 }
 
+func (s *FileService) attachPreviewURLs(ctx context.Context, files []models.File) []models.File {
+	for i := range files {
+		previewKey := files[i].StorageKey
+		if files[i].ThumbnailKey != nil && *files[i].ThumbnailKey != "" {
+			previewKey = *files[i].ThumbnailKey
+		} else if !strings.HasPrefix(strings.ToLower(files[i].MimeType), "image/") {
+			continue
+		}
 
-func ( s *FileService) GetFiles( ctx context.Context , userId string , folderId *string )([]models.File, error) {
+		url, err := s.s3.GenerateDownloadUrl(ctx, previewKey)
+		if err != nil {
+			log.Printf("failed to generate preview url for file %s: %v", files[i].Id, err)
+			continue
+		}
+		files[i].ThumbnailURL = url
+	}
 
-	return s.fileRepo.GetByOwner(
+	return files
+}
+
+func (s *FileService) GetFiles(ctx context.Context, userId string, folderId *string) ([]models.File, error) {
+
+	files, err := s.fileRepo.GetByOwner(
 		ctx,
 		userId,
 		folderId,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.attachPreviewURLs(ctx, files), nil
 }
 
-func( s *FileService) DeletFile( ctx context.Context , fileId string,userId string , ) error{
+func (s *FileService) DeletFile(ctx context.Context, fileId string, userId string) error {
 
-	return s.fileRepo.SoftDelete(ctx , fileId , userId)
+	return s.fileRepo.SoftDelete(ctx, fileId, userId)
 }
-
 
 func (s *FileService) GetTrash(
 	ctx context.Context,
 	userID string,
 ) ([]models.File, error) {
-	return s.fileRepo.GetTrash(ctx, userID)
+	files, err := s.fileRepo.GetTrash(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.attachPreviewURLs(ctx, files), nil
 }
 
 func (s *FileService) RestoreFile(
@@ -321,11 +246,44 @@ func (s *FileService) RestoreFile(
 	return s.fileRepo.Restore(ctx, fileID, userID)
 }
 
+func (s *FileService) PermanentDelete(
+	ctx context.Context,
+	fileID string,
+	userID string,
+) error {
+	file, err := s.fileRepo.GetTrashedByID(ctx, fileID, userID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.s3.DeleteObject(ctx, file.StorageKey); err != nil {
+		log.Printf("failed to delete s3 object %s: %v", file.StorageKey, err)
+	}
+
+	return s.fileRepo.HardDelete(ctx, fileID, userID)
+}
+
 func (s *FileService) GetSharedFiles(
 	ctx context.Context,
 	userID string,
 ) ([]models.File, error) {
 
-	return s.fileRepo.GetSharedFilewithuser(ctx, userID)
+	files, err := s.fileRepo.GetSharedFilewithuser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.attachPreviewURLs(ctx, files), nil
 }
 
+func (s *FileService) Search(
+	ctx context.Context,
+	userID string,
+	query string,
+) ([]models.File, error) {
+	files, err := s.fileRepo.SearchByName(ctx, userID, query)
+	if err != nil {
+		return nil, err
+	}
+	return s.attachPreviewURLs(ctx, files), nil
+}

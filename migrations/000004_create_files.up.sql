@@ -11,6 +11,8 @@ folder_id UUID REFERENCES folders(id) ON DELETE SET NULL,
 
     mime_type VARCHAR(100) NOT NULL,
 
+    size BIGINT NOT NULL DEFAULT 0,
+
     deleted_at TIMESTAMPTZ,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

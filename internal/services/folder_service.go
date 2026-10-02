@@ -110,6 +110,14 @@ func (s *FolderService) GetFolders(
 }
 
 
+func (s *FolderService) Search(
+	ctx context.Context,
+	ownerID string,
+	query string,
+) ([]models.Folder, error) {
+	return s.folderRepo.SearchByName(ctx, ownerID, query)
+}
+
 func (s *FolderService) Update(
 	ctx context.Context,
 	ownerID string,

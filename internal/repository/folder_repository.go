@@ -203,6 +203,52 @@ func( r *FolderRepo) Update(
 
 
 
+func (r *FolderRepo) SearchByName(
+	ctx context.Context,
+	ownerID string,
+	query string,
+) ([]models.Folder, error) {
+	pattern := likePattern(query)
+
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			id,
+			owner_id,
+			parent_id,
+			name,
+			created_at,
+			updated_at
+		FROM folders
+		WHERE owner_id = $1
+		  AND name ILIKE $2 ESCAPE '\'
+		ORDER BY name ASC
+		LIMIT 50
+	`, ownerID, pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var folders []models.Folder
+	for rows.Next() {
+		var folder models.Folder
+		err := rows.Scan(
+			&folder.ID,
+			&folder.OwnerID,
+			&folder.ParentID,
+			&folder.Name,
+			&folder.CreatedAt,
+			&folder.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		folders = append(folders, folder)
+	}
+
+	return folders, rows.Err()
+}
+
 func (r *FolderRepo) Delete(
 	ctx context.Context,
 	id string,

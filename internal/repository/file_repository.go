@@ -45,10 +45,11 @@ func (r *FileRepository) Create(
 			storage_key,
 			mime_type,
 			size,
+			thumbnail_key,
 			deleted_at,
 			created_at,
 			updated_at
-	`,file.Id,
+	`, file.Id,
 		file.OwnerId,
 		file.FolderId,
 		file.Name,
@@ -65,6 +66,7 @@ func (r *FileRepository) Create(
 		&result.StorageKey,
 		&result.MimeType,
 		&result.Size,
+		&result.ThumbnailKey,
 		&result.DeletedAt,
 		&result.CreatedAt,
 		&result.UpdatedAt,
@@ -77,11 +79,10 @@ func (r *FileRepository) Create(
 	return result, nil
 }
 
+func (r *FileRepository) GetFileById(ctx context.Context, id string, ownerId string) (*models.File, error) {
+	file := &models.File{}
 
-func ( r *FileRepository) GetFileById( ctx context.Context , id string , ownerId string )(*models.File, error){
-		file := &models.File{}
-
-		err := r.db.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT
 			id,
 			owner_id,
@@ -91,6 +92,7 @@ func ( r *FileRepository) GetFileById( ctx context.Context , id string , ownerId
 			storage_key,
 			mime_type,
 			size,
+			thumbnail_key,
 			deleted_at,
 			created_at,
 			updated_at
@@ -100,7 +102,7 @@ func ( r *FileRepository) GetFileById( ctx context.Context , id string , ownerId
 		  AND deleted_at IS NULL
 	`,
 		id,
-		file.OwnerId,
+		ownerId,
 	).Scan(
 		&file.Id,
 		&file.OwnerId,
@@ -110,6 +112,7 @@ func ( r *FileRepository) GetFileById( ctx context.Context , id string , ownerId
 		&file.StorageKey,
 		&file.MimeType,
 		&file.Size,
+		&file.ThumbnailKey,
 		&file.DeletedAt,
 		&file.CreatedAt,
 		&file.UpdatedAt,
@@ -138,6 +141,7 @@ func (r *FileRepository) GetByOwner(
 			storage_key,
 			mime_type,
 			size,
+			thumbnail_key,
 			deleted_at,
 			created_at,
 			updated_at
@@ -172,6 +176,7 @@ func (r *FileRepository) GetByOwner(
 			&file.StorageKey,
 			&file.MimeType,
 			&file.Size,
+			&file.ThumbnailKey,
 			&file.DeletedAt,
 			&file.CreatedAt,
 			&file.UpdatedAt,
@@ -191,8 +196,8 @@ func (r *FileRepository) GetByOwner(
 	return files, nil
 }
 
-func ( r *FileRepository) SoftDelete(ctx context.Context , fileId string , ownerId string) error{
-		_, err := r.db.Exec(ctx, `
+func (r *FileRepository) SoftDelete(ctx context.Context, fileId string, ownerId string) error {
+	_, err := r.db.Exec(ctx, `
 		UPDATE files
 		SET deleted_at = NOW(),
 		    updated_at = NOW()
@@ -219,6 +224,7 @@ func (r *FileRepository) GetTrash(
 			storage_key,
 			mime_type,
 			size,
+			thumbnail_key,
 			deleted_at,
 			created_at,
 			updated_at
@@ -247,6 +253,7 @@ func (r *FileRepository) GetTrash(
 			&file.StorageKey,
 			&file.MimeType,
 			&file.Size,
+			&file.ThumbnailKey,
 			&file.DeletedAt,
 			&file.CreatedAt,
 			&file.UpdatedAt,
@@ -279,8 +286,68 @@ func (r *FileRepository) Restore(
 	return err
 }
 
+func (r *FileRepository) GetTrashedByID(
+	ctx context.Context,
+	fileID string,
+	ownerID string,
+) (*models.File, error) {
+	file := &models.File{}
 
-func ( r *FileRepository) GetIdForUser(ctx context.Context , fileId string , userd string )(*models.File, error) {
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			id,
+			owner_id,
+			folder_id,
+			name,
+			original_name,
+			storage_key,
+			mime_type,
+			size,
+			thumbnail_key,
+			deleted_at,
+			created_at,
+			updated_at
+		FROM files
+		WHERE id = $1
+		  AND owner_id = $2
+		  AND deleted_at IS NOT NULL
+	`, fileID, ownerID).Scan(
+		&file.Id,
+		&file.OwnerId,
+		&file.FolderId,
+		&file.Name,
+		&file.OriginalName,
+		&file.StorageKey,
+		&file.MimeType,
+		&file.Size,
+		&file.ThumbnailKey,
+		&file.DeletedAt,
+		&file.CreatedAt,
+		&file.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
+func (r *FileRepository) HardDelete(
+	ctx context.Context,
+	fileID string,
+	ownerID string,
+) error {
+	_, err := r.db.Exec(ctx, `
+		DELETE FROM files
+		WHERE id = $1
+		  AND owner_id = $2
+		  AND deleted_at IS NOT NULL
+	`, fileID, ownerID)
+
+	return err
+}
+
+func (r *FileRepository) GetIdForUser(ctx context.Context, fileId string, userd string) (*models.File, error) {
 
 	var files models.File
 	err := r.db.QueryRow(ctx, `
@@ -293,6 +360,7 @@ func ( r *FileRepository) GetIdForUser(ctx context.Context , fileId string , use
 			f.storage_key,
 			f.mime_type,
 			f.size,
+			f.thumbnail_key,
 			f.deleted_at,
 			f.created_at,
 			f.updated_at
@@ -306,7 +374,7 @@ func ( r *FileRepository) GetIdForUser(ctx context.Context , fileId string , use
 		      f.owner_id = $2
 		      OR fs.shared_with_user_id = $2
 		  )
-	`,fileId ,userd).Scan(&files.Id,
+	`, fileId, userd).Scan(&files.Id,
 		&files.OwnerId,
 		&files.FolderId,
 		&files.Name,
@@ -314,10 +382,10 @@ func ( r *FileRepository) GetIdForUser(ctx context.Context , fileId string , use
 		&files.StorageKey,
 		&files.MimeType,
 		&files.Size,
+		&files.ThumbnailKey,
 		&files.DeletedAt,
 		&files.CreatedAt,
-		&files.UpdatedAt,)
-
+		&files.UpdatedAt)
 
 	if err != nil {
 		return nil, err
@@ -326,8 +394,8 @@ func ( r *FileRepository) GetIdForUser(ctx context.Context , fileId string , use
 	return &files, nil
 }
 
-func ( r *FileRepository) GetSharedFilewithuser(ctx context.Context , userId string ) ([]models.File , error){
-		rows, err := r.db.Query(ctx, `
+func (r *FileRepository) GetSharedFilewithuser(ctx context.Context, userId string) ([]models.File, error) {
+	rows, err := r.db.Query(ctx, `
 		SELECT
 			f.id,
 			f.owner_id,
@@ -337,6 +405,7 @@ func ( r *FileRepository) GetSharedFilewithuser(ctx context.Context , userId str
 			f.storage_key,
 			f.mime_type,
 			f.size,
+			f.thumbnail_key,
 			f.deleted_at,
 			f.created_at,
 			f.updated_at
@@ -352,14 +421,13 @@ func ( r *FileRepository) GetSharedFilewithuser(ctx context.Context , userId str
 	}
 	defer rows.Close()
 
-
 	var files []models.File
 
 	for rows.Next() {
 		var file models.File
 
 		err := rows.Scan(
-			&file.FolderId,
+			&file.Id,
 			&file.OwnerId,
 			&file.FolderId,
 			&file.Name,
@@ -367,6 +435,7 @@ func ( r *FileRepository) GetSharedFilewithuser(ctx context.Context , userId str
 			&file.StorageKey,
 			&file.MimeType,
 			&file.Size,
+			&file.ThumbnailKey,
 			&file.DeletedAt,
 			&file.CreatedAt,
 			&file.UpdatedAt,
@@ -376,6 +445,68 @@ func ( r *FileRepository) GetSharedFilewithuser(ctx context.Context , userId str
 			return nil, err
 		}
 
+		files = append(files, file)
+	}
+
+	return files, rows.Err()
+}
+
+func (r *FileRepository) SearchByName(
+	ctx context.Context,
+	ownerID string,
+	query string,
+) ([]models.File, error) {
+	pattern := likePattern(query)
+
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			id,
+			owner_id,
+			folder_id,
+			name,
+			original_name,
+			storage_key,
+			mime_type,
+			size,
+			thumbnail_key,
+			deleted_at,
+			created_at,
+			updated_at
+		FROM files
+		WHERE owner_id = $1
+		  AND deleted_at IS NULL
+		  AND (
+		      name ILIKE $2 ESCAPE '\'
+		      OR original_name ILIKE $2 ESCAPE '\'
+		  )
+		ORDER BY created_at DESC
+		LIMIT 50
+	`, ownerID, pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []models.File
+	for rows.Next() {
+		var file models.File
+		err := rows.Scan(
+			&file.Id,
+			&file.OwnerId,
+			&file.FolderId,
+			&file.Name,
+			&file.OriginalName,
+			&file.StorageKey,
+			&file.MimeType,
+			&file.Size,
+			&file.ThumbnailKey,
+			&file.DeletedAt,
+			&file.CreatedAt,
+			&file.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
 		files = append(files, file)
 	}
 

@@ -1,20 +1,23 @@
 package handlers
 
 import (
+	"drivex/internal/models"
 	"drivex/internal/services"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-
 type FileHAndler struct {
-	fileService *services.FileService
+	fileService   *services.FileService
+	folderService *services.FolderService
 }
 
-func NewFileHandler( fileService *services.FileService) *FileHAndler{
+func NewFileHandler(fileService *services.FileService, folderService *services.FolderService) *FileHAndler {
 	return &FileHAndler{
-		fileService: fileService,
+		fileService:   fileService,
+		folderService: folderService,
 	}
 }
 
@@ -22,8 +25,6 @@ type UploadURLRequest struct {
 	FileName    string `json:"file_name" binding:"required"`
 	ContentType string `json:"content_type" binding:"required"`
 }
-
-
 
 type CompleteUploadRequest struct {
 	FileID       string  `json:"file_id" binding:"required"`
@@ -34,7 +35,8 @@ type CompleteUploadRequest struct {
 	MimeType     string  `json:"mime_type" binding:"required"`
 	Size         int64   `json:"size" binding:"required"`
 }
-func (h * FileHAndler) GenerateUpladUrl(c *gin.Context){
+
+func (h *FileHAndler) GenerateUpladUrl(c *gin.Context) {
 	var req UploadURLRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -44,7 +46,7 @@ func (h * FileHAndler) GenerateUpladUrl(c *gin.Context){
 		return
 	}
 
-	userId , exist:= c.Get("user_id")
+	userId, exist := c.Get("user_id")
 	if !exist {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "unauthorized",
@@ -52,29 +54,28 @@ func (h * FileHAndler) GenerateUpladUrl(c *gin.Context){
 		return
 	}
 
-
 	uploadUrl, storageKey, fileId, err := h.fileService.GenerateUploadURL(
-    c.Request.Context(),
-    userId.(string),
-    req.FileName,
-    req.ContentType,
-)
-			if err != nil {
+		c.Request.Context(),
+		userId.(string),
+		req.FileName,
+		req.ContentType,
+	)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to generate upload URL",
 		})
 		return
 	}
 
-		c.JSON(http.StatusOK, gin.H{
-			"file_id":fileId,
+	c.JSON(http.StatusOK, gin.H{
+		"file_id":     fileId,
 		"upload_url":  uploadUrl,
 		"storage_key": storageKey,
 	})
 
 }
 
-func (h *FileHAndler) CompleteUpload( c *gin.Context){
+func (h *FileHAndler) CompleteUpload(c *gin.Context) {
 	var req CompleteUploadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -83,7 +84,7 @@ func (h *FileHAndler) CompleteUpload( c *gin.Context){
 		return
 	}
 
-		userID, exists := c.Get("user_id")
+	userID, exists := c.Get("user_id")
 
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -92,8 +93,7 @@ func (h *FileHAndler) CompleteUpload( c *gin.Context){
 		return
 	}
 
-
-	file , err := h.fileService.CompleteUpload(
+	file, err := h.fileService.CompleteUpload(
 		c.Request.Context(),
 		userID.(string),
 		req.FileID,
@@ -114,8 +114,6 @@ func (h *FileHAndler) CompleteUpload( c *gin.Context){
 	c.JSON(http.StatusCreated, file)
 
 }
-
-
 
 func (h *FileHAndler) Download(c *gin.Context) {
 
@@ -145,8 +143,8 @@ func (h *FileHAndler) Download(c *gin.Context) {
 		"download_url": url,
 	})
 }
-func ( h *FileHAndler) GetFiles(c *gin.Context) {
-	userId , exists := c.Get("user_id")
+func (h *FileHAndler) GetFiles(c *gin.Context) {
+	userId, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "unauthorized",
@@ -154,9 +152,8 @@ func ( h *FileHAndler) GetFiles(c *gin.Context) {
 		return
 	}
 
-	var folderId *string 
+	var folderId *string
 	queryFolderID := c.Query("folder_id")
-
 
 	if queryFolderID != "" {
 		folderId = &queryFolderID
@@ -175,21 +172,23 @@ func ( h *FileHAndler) GetFiles(c *gin.Context) {
 		return
 	}
 
+	if files == nil {
+		files = []models.File{}
+	}
 
-c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"files": files,
 	})
 }
 
-
-func( h *FileHAndler) DeleteFile( c *gin.Context) {
+func (h *FileHAndler) DeleteFile(c *gin.Context) {
 	userId := c.GetString("user_id")
 
-fileId := c.Param("id")
+	fileId := c.Param("id")
 
-err := h.fileService.DeletFile( c.Request.Context() , fileId , userId)
+	err := h.fileService.DeletFile(c.Request.Context(), fileId, userId)
 
-if err != nil {
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to delete file",
 		})
@@ -201,23 +200,25 @@ if err != nil {
 	})
 }
 
-func( h *FileHAndler) GetTrash(c *gin.Context){
+func (h *FileHAndler) GetTrash(c *gin.Context) {
 	userId := c.GetString("user_id")
 
-	files, err := h.fileService.GetTrash( c.Request.Context() , userId)
-		if err != nil {
+	files, err := h.fileService.GetTrash(c.Request.Context(), userId)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to get trash",
 		})
 		return
 	}
 
+	if files == nil {
+		files = []models.File{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"files": files,
 	})
 }
-
-
 
 func (h *FileHAndler) RestoreFile(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -241,12 +242,80 @@ func (h *FileHAndler) RestoreFile(c *gin.Context) {
 	})
 }
 
+func (h *FileHAndler) PermanentDeleteFile(c *gin.Context) {
+	userID := c.GetString("user_id")
+	fileID := c.Param("id")
 
+	err := h.fileService.PermanentDelete(
+		c.Request.Context(),
+		fileID,
+		userID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to permanently delete file",
+		})
+		return
+	}
 
+	c.JSON(http.StatusOK, gin.H{
+		"message": "file permanently deleted",
+	})
+}
 
-func ( h *FileHAndler) GetSharedFie( c *gin.Context){
+func (h *FileHAndler) Search(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized",
+		})
+		return
+	}
+
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"files":   []models.File{},
+			"folders": []models.Folder{},
+		})
+		return
+	}
+
+	if len(query) > 100 {
+		query = query[:100]
+	}
+
+	files, err := h.fileService.Search(c.Request.Context(), userID.(string), query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to search files",
+		})
+		return
+	}
+	if files == nil {
+		files = []models.File{}
+	}
+
+	folders, err := h.folderService.Search(c.Request.Context(), userID.(string), query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to search folders",
+		})
+		return
+	}
+	if folders == nil {
+		folders = []models.Folder{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"files":   files,
+		"folders": folders,
+	})
+}
+
+func (h *FileHAndler) GetSharedFie(c *gin.Context) {
 	userId := c.GetString("user_id")
-	files , err := h.fileService.GetSharedFiles(c.Request.Context() , userId)
+	files, err := h.fileService.GetSharedFiles(c.Request.Context(), userId)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
